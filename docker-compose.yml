@@ -1,0 +1,26 @@
+version: '3.7'
+
+services:
+  database:
+    image: mysql:8.0.19
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=9786gtyvghjbiug8ytvucgfh
+    ports:
+      - '3306:3306'
+    volumes:
+      - ./init-scripts/db.sql:/docker-entrypoint-initdb.d/1.sql
+      - ./db-data:/var/lib/mysql
+  laravel-iwa:
+    image: docker.io/bitnami/laravel:10
+    ports:
+      - '8000:8000'
+    environment:
+      - DB_HOST=database
+      - DB_PORT=5432
+      - DB_USERNAME=iwa
+      - DB_DATABASE=iwa
+    volumes:
+      - './backend-app:/app'
+    depends_on:
+      - database
