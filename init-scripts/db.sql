@@ -15,12 +15,20 @@
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 
---
--- Table structure for table `country`
---
+
+CREATE USER 'superuser'@'%' IDENTIFIED BY '9786gtyvghjbiug8ytvucgfh';
+GRANT ALL PRIVILEGES ON *.* to 'superuser'@'%' WITH GRANT OPTION;
+
+FLUSH PRIVILEGES;
+
 
 CREATE DATABASE iwa;
 USE iwa;
+
+
+--
+-- Table structure for table `country`
+--
 
 DROP TABLE IF EXISTS `country`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;

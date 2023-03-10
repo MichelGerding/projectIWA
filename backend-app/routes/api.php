@@ -17,3 +17,11 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
+
+Route::get('/countries', function () {
+    echo "<pre>";
+    $sql = 'SELECT * FROM country';
+
+    $results = DB::select($sql);
+    return var_dump($results);
+});
