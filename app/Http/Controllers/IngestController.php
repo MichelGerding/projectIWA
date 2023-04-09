@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\MeasurementError;
 use Illuminate\Http\Request;
 use App\Models\Measurement;
-use Illuminate\Support\Facades\DB;
 use MathPHP\NumericalAnalysis\Interpolation\Interpolation;
+use MathPHP\NumericalAnalysis\Interpolation\NevillesMethod;
+use MathPHP\NumericalAnalysis\Interpolation\NewtonPolynomialForward;
 use MathPHP\NumericalAnalysis\Interpolation\LagrangePolynomial;
+
 
 class IngestController extends Controller
 {
@@ -17,6 +20,7 @@ class IngestController extends Controller
     public function ingestData(Request $request) {
         $body = $request->getContent();
         $stations = json_decode($body, true)["WEATHERDATA"];
+
 
 
         // validate and insert all the data
@@ -34,12 +38,23 @@ class IngestController extends Controller
                 ->get();
 
 
-            $this->validateData($measurement, $prevMeasurements);
+            $errors = [];
+            $this->validateData($measurement, $prevMeasurements, $errors);
 
-            $this->insertData($measurement);
+            $inserted = $this->insertData($measurement);
+
+            $this->insertErrors($errors, $inserted['id']);
         }
     }
 
+
+    public function insertErrors(array $errors, int $measurementId) {
+        foreach ($errors as $error) {
+            $error->measurement = $measurementId;
+            $error->save();
+        }
+
+    }
 
     public function insertData(array &$data) {
         $measurement = new Measurement();
@@ -49,31 +64,50 @@ class IngestController extends Controller
         }
 
         $measurement->save();
+        return $measurement;
     }
 
 
 
-    public function validateData(array &$data, $prevMeasurement) {
-        // if the data is "None" then replace it withnull
+    public function validateData(array &$data, $prevMeasurement, &$errors) {
+        // if the data is "None" then replace it with null
         foreach ($data as $key => $value) {
             if (in_array($key, ["STN", "DATE", "TIME", "FRSHTT"])) {
                 continue;
             }
 
             $extrapolated = $this->extrapolateMeasurements($prevMeasurement, $data, strtolower($key));
-            $extrapolatedMargin = $extrapolated * 0.2;
+            if ($extrapolated == "None") {
+                $extrapolated = null;
+            }
 
-
-            if ($key === "temp" and $value === "None") {
+            if ($value === "None") {
                 // validate data
-                $data[$key] = 0;
+                $data[$key] = $extrapolated;
+
+                $me = new MeasurementError();
+                $me["measurement"] = null;
+                $me["error_type"] = 1;
+                $me["measurement_type"] = $key;
+                $me["value"] = null;
+                $errors[] = $me;
+
                 continue;
             }
 
-            if (abs($value - $extrapolated) > $extrapolatedMargin) {
-                error_log("invalid");
+            $margin = abs($extrapolated * 0.2);
+
+            if ($key == "TEMP" && (abs($value - $extrapolated) > $margin)) {
+                error_log("out of range, val: $value, extrapolated: $extrapolated, diff: "  . abs($value - $extrapolated) .", margin: $margin");
 
                 $data[$key] = $extrapolated;
+
+                $me = new MeasurementError();
+                $me["measurement"] = null;
+                $me["error_type"] = 2;
+                $me["measurement_type"] = $key;
+                $me["value"] = $value;
+                $errors[] = $me;
             }
         }
     }
@@ -96,24 +130,15 @@ class IngestController extends Controller
             $points[] = [$pointTime - $firstPointTime, $measurement[$key]];
 
         }
-
-        if (count($points) === 0) {
-            echo "no prev data<br>";
+        if (count($points) < 3) {
             return $newPoint[$key] ?? $newPoint[strtoupper($key)];
         }
 
 
-//        echo $key;
-        $p = lagrange_interpolation($points);
-//        $p = LagrangePolynomial::interpolate($points);
-        $d = $p(measurementJsonToUnixTimestamp($newPoint) - $firstPointTime);
-//        echo $d . " " . measurementJsonToUnixTimestamp($newPoint) - $firstPointTime . "\n";
-//        dd($points, $d, measurementJsonToUnixTimestamp($newPoint) - $firstPointTime);
 
-
-        return $d;
-
-
+        return NevillesMethod::interpolate(measurementJsonToUnixTimestamp($newPoint) - $firstPointTime, $points);
+//        $P = NewtonPolynomialForward::interpolate($points);
+//        return $P(measurementJsonToUnixTimestamp($newPoint) - $firstPointTime);
     }
 
 
@@ -134,23 +159,41 @@ function measurementJsonToUnixTimestamp($in): bool|int {
     return mktime($hour, $min, $sec, $month, $day, $year);
 }
 
-function lagrange_interpolation($points) {
-    $n = count($points);
-    $L = function($k, $x) use ($points, $n) {
-        $result = 1;
-        for ($i = 0; $i < $n; ++$i) {
-            if ($i != $k) {
-                $result *= ($x - $points[$i][0]) / ($points[$k][0] - $points[$i][0]);
-            }
-        }
-        return $result;
-    };
-    $P = function($x) use ($points, $n, $L) {
-        $result = 0;
-        for ($k = 0; $k < $n; ++$k) {
-            $result += $points[$k][1] * $L($k, $x);
-        }
-        return $result;
-    };
-    return $P;
+function frenchCurveExtrapolation($data, $x_value) {
+    $n = count($data);
+    $sum_x = $sum_y = $sum_xx = $sum_xy = 0;
+
+    // Calculate the sums of x, y, x^2, and xy
+    for ($i = 0; $i < $n; $i++) {
+        $sum_x += $data[$i][0];
+        $sum_y += $data[$i][1];
+        $sum_xx += $data[$i][0] * $data[$i][0];
+        $sum_xy += $data[$i][0] * $data[$i][1];
+    }
+    echo "<pre>";
+    var_dump($data);
+    // Calculate the slope and intercept of the line of best fit
+    $slope = ($n * $sum_xy - $sum_x * $sum_y) / ($n * $sum_xx - $sum_x * $sum_x);
+    $intercept = ($sum_y - $slope * $sum_x) / $n;
+
+    // Extrapolate the y-value for the given x-value
+    $y_value = $slope * $x_value + $intercept;
+
+    return $y_value;
 }
+
+
+//use MathPHP\NumericalAnalysis\Spline;
+
+//function cubic_spline_extrapolation($x, $y, $x_new) {
+//    // Calculate the cubic spline coefficients
+//    $spline = Spline::fromArrays($x, $y);
+//
+//    // Extrapolate the y-values for the new x-values
+//    $y_new = [];
+//    foreach ($x_new as $xn) {
+//        $y_new[] = $spline->interpolate($xn);
+//    }
+//
+//    return $y_new;
+//}
