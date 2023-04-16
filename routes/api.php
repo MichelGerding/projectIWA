@@ -26,7 +26,7 @@ Route::get('countries', function () {
     $sql = 'SELECT * FROM country';
 
     $results = DB::select($sql);
-    return var_dump($results);
+    return json_encode($results);
 });
 
 

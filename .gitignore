@@ -17,6 +17,9 @@ yarn-error.log
 /.idea
 /.vscode
 
+composer.lock
+package-lock.json
+
 
 
 # Created by https://www.toptal.com/developers/gitignore/api/laravel

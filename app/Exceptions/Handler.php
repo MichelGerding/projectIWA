@@ -45,4 +45,12 @@ class Handler extends ExceptionHandler
             //
         });
     }
+
+//    public function render($request, $exception) {
+//        if ($exception){
+//            // log the error
+//            error_log($exception->getMessage());
+//        }
+//        return parent::render($request, $exception);
+//    }
 }
