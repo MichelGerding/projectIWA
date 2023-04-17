@@ -19,7 +19,7 @@ return new class extends Migration
             $table->time('time');
 
             // measurements
-            $table->float('temp', 5, 2)->nullable();
+            $table->float('temp')->nullable();
             $table->float('dewp')->nullable();
             $table->float('stp')->nullable();
             $table->float('slp')->nullable();
