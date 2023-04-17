@@ -31,7 +31,8 @@ class IngestController extends Controller
             }
 
 
-            $prevMeasurements = Measurement::where('stn', "=", "" . $measurement["STN"])
+            $prevMeasurements = Measurement::query()
+                ->where('stn', "=", "" . $measurement["STN"])
                 ->orderByDesc('date')
                 ->orderByDesc('time')
                 ->limit(30)
@@ -130,13 +131,13 @@ class IngestController extends Controller
             $points[] = [$pointTime - $firstPointTime, $measurement[$key]];
 
         }
-        if (count($points) < 3) {
+        if (count($points) < 20) {
             return $newPoint[$key] ?? $newPoint[strtoupper($key)];
         }
 
 
-
-        return NevillesMethod::interpolate(measurementJsonToUnixTimestamp($newPoint) - $firstPointTime, $points);
+        return frenchCurveExtrapolation($points, measurementJsonToUnixTimestamp($newPoint)- $firstPointTime);
+        //return NevillesMethod::interpolate(measurementJsonToUnixTimestamp($newPoint) - $firstPointTime, $points);
 //        $P = NewtonPolynomialForward::interpolate($points);
 //        return $P(measurementJsonToUnixTimestamp($newPoint) - $firstPointTime);
     }
