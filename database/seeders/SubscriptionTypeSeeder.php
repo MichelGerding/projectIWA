@@ -13,12 +13,6 @@ class SubscriptionTypeSeeder extends Seeder
      */
     public function run(): void
     {
-        /**
-         * subscription_live
-         * subscription_periodic
-         * contract
-         */
-
         DB::table('subscription_type')->insertOrIgnore([
             [ 'id' => 1, 'type' => "subscription_live" ],
             [ 'id' => 2, 'type' => "subscription_periodic" ],

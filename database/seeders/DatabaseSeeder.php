@@ -15,8 +15,8 @@ class DatabaseSeeder extends Seeder
         $this->call([
             ErrorTypeSeeder::class,
             SubscriptionTypeSeeder::class,
-//            MeasurementSeeder::class,
-//            SubscriptionsSeeder::class,
+            MeasurementSeeder::class,
+            SubscriptionsSeeder::class,
             ContractSeeder::class
         ]);
     }

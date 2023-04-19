@@ -16,7 +16,6 @@ class OutputController extends Controller
 {
     public function getData(Request $request) {
         // check if there is a api key
-
         if (!$request->hasHeader("Authorization")) {
             abort(403);
         };
@@ -34,6 +33,7 @@ class OutputController extends Controller
         $sType = SubscriptionType::query()
             ->find($subscription->subscription_type)["type"];
 
+        // check the type of subscription and passs it to the appropriate function 
         return match ($sType) {
             "subscription_periodic" => $this->getFromDisk($subscription),
             "subscription_live" => $this->getFromDatabase($subscription),
@@ -44,9 +44,10 @@ class OutputController extends Controller
     }
 
     function getFromDisk($subscription): string {
-        // return the file
+        // read the file from disk
         $s = Storage::disk('weatherData')->get($subscription->apikey. ".json");
 
+        // if it doesnt exist then we return a empty object
         if ($s == null) {
             return '{"measurements": []}';
         }
@@ -55,48 +56,39 @@ class OutputController extends Controller
     }
 
     function getFromDatabase($subscription): string {
+        // get the last measurement from the database for the selected station
         $measurement = Subscription::query()
             ->join("subscription_station", 'subscription.id', '=', 'subscription_station.subscription')
             ->join("measurement", 'subscription_station.station', '=', 'measurement.stn')
             ->where("subscription.id", '=' , $subscription->id)
             ->limit(1)
-            ->get([
-                "measurement.stn",
-                "measurement.date",
-                "measurement.time",
-                "measurement.temp",
-                "measurement.dewp",
-                "measurement.stp",
-                "measurement.slp",
-                "measurement.visib",
-                "measurement.wdsp",
-                "measurement.prcp",
-                "measurement.sndp",
-                "measurement.frshtt",
-                "measurement.cldc",
-                "measurement.wnddir"
-            ]);
+            ->get(["measurement.*"]);
 
         return json_encode([
             "measurements" => $measurement
         ]);
     }
 
+    /**
+     * get the measurements for the contract
+     */
     function getContracted($subscription): string {
 
-        // get the contract info
+        // get the contract assigned to this subscription
         $contract = Contract::query()
             ->where("subscription", '=', $subscription->id)
             ->first();
 
+        // get the applied filters
         $filters = json_decode($contract->station_selection_json, true)["filters"];
 
         $where = [];
         $what = [];
 
+        // match the to the appropriate variable
         foreach ($filters as $filter) {
 
-            // get the where
+            // get the filter to the stations
             if (in_array($filter["type"], [
                 "country",
                 "region",
@@ -104,27 +96,29 @@ class OutputController extends Controller
                 $where = $filter;
             }
 
+            // get the filter to the variables
             if ($filter["type"] == "measurement") {
                 $what = $filter;
             }
         }
 
+        // match the station filter to the type of filter we have
         $stations = [];
         if ($where["type"] == "country") {
-            // find the stations
+            // filter on country
             $stationsIds = DB::table("nearestlocation")
                 ->select("station_name")
                 ->where("country_code", "=", $where["value"])
                 ->get();
         }  else if ($where["type"] == "region") {
+            // filter on region
             $stationsIds = DB::table("nearestlocation")
                 ->select("station_name")
                 ->where("administrative_region1", "=", $where["value"])
                 ->where("administrative_region2", "=", $where["value"], 'or')
                 ->get();
         } else if($where["type"] == "coords") {
-            // distance is in meters
-
+            // filter on coordinates
             $coordsS = explode(',', $where["value"]);
 
             $coords = [
@@ -141,13 +135,12 @@ class OutputController extends Controller
             $stationsIds = $q->get();
         }
 
-        // get the measuremets we want
-
+        // define the required measurements
         $mTypes = $what["value"];
         $mTypes[] = "date";
         $mTypes[] = "time";
 
-
+        // get the measurements for all stations and save it in a array.
         $measurements = [];
         foreach ($stationsIds as $stn) {
             $measurements[$stn->station_name] = Measurement::query()
@@ -158,6 +151,7 @@ class OutputController extends Controller
                 ->get($mTypes);
         }
 
+        // return the json
         return json_encode($measurements);
     }
 }

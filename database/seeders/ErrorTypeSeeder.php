@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
 class ErrorTypeSeeder extends Seeder
 {
     /**
-     * Run the database seeds.
+     * Generate the different types of errors
      */
     public function run(): void
     {

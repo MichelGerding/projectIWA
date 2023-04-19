@@ -10,7 +10,7 @@ use Illuminate\Database\Seeder;
 class ContractSeeder extends Seeder
 {
     /**
-     * Run the database seeds.
+     * Generate a subscription and contract
      */
     public function run(): void
     {
