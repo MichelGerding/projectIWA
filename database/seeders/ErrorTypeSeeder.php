@@ -14,6 +14,6 @@ class ErrorTypeSeeder extends Seeder
     {
         DB::table('error_type')->insertOrIgnore([
             [ 'id' => 1, 'name' => "missing" ],
-            [ 'id' => 2, 'name' => "invallid" ]]);
+            [ 'id' => 2, 'name' => "invalid" ]]);
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\MeasurementError;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
 use App\Models\Measurement;
 use MathPHP\NumericalAnalysis\Interpolation\Interpolation;
